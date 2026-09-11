@@ -50,7 +50,7 @@ They reuse saved synthetic evidence and are part of the same offline suite.
 The [agent tests](tests/test_agent.md) cover classification failures, unsafe
 drafts, evidence checks, masking and escalation. The
 [provider/UI tests](tests/test_models_ui.md) check model routing, sanitized
-errors and actual Streamlit demo interactions. The
+errors and Flask request handling. The
 [evaluation tests](tests/test_evaluation.md) exercise both baselines, saved
 reports, review exports and exact-reply human-rating imports. All model results
 in tests are injected fixtures, not measured customer-support performance.

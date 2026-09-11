@@ -1,11 +1,7 @@
-# test_models_ui.py
+# Model and web tests
 
-Provider tests replace only the LiteLLM boundary to check JSON validation,
-configured routing, missing credentials and redacted exceptions. Streamlit's
-AppTest loads the real website, selects its explicit demo and submits a message
-with network calls blocked. This verifies UI wiring without presenting scripted
-outputs as real model performance.
-
-Package-command tests run data, retrieval, evaluation and annotation help in
-subprocesses from another working directory. They verify the reorganized entry
-points import successfully without runpy warnings.
+`tests/test_models_ui.py` tests provider routing, ordered history, missing
+credentials, redacted errors and model request boundaries.
+`tests/test_customer_ui.py` covers chat history, reset, tampered conversation
+tokens, input limits, asset serving and customer-safe errors using Flask test clients.
+Run `.venv/bin/python -m pytest -q`. Tests do not require network or credentials.

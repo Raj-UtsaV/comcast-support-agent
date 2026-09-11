@@ -1,0 +1,8 @@
+{% extends 'base.html' %}{% block content %}
+<section class="hero"><div class="symbol">✦</div><h1>A little help goes a long way.</h1><p>Tell us what’s happening. We’ll help you explore the next steps, one message at a time.</p></section>
+<div class="topics"><button data-prompt="My internet connection stopped working. What can I try?">Internet connection</button><button data-prompt="I have an unexpected charge on my bill.">A billing question</button><button data-prompt="Some of my TV channels are not working.">TV &amp; channels</button></div>
+<p class="muted">Please leave out passwords, verification codes, and account numbers.</p>
+<button id="reset" type="button">New conversation</button><div id="messages" aria-live="polite"></div>
+<form id="chat-form"><label for="message">How can we help you today?</label><textarea id="message" required maxlength="{{ config.runtime.max_message_characters }}" placeholder="Describe your issue…"></textarea><p class="muted keyboard-hint">Enter to send · Shift+Enter for a new line</p><button class="primary">Send message</button></form><p id="error" role="alert"></p>
+{% if support_channels %}<aside class="support-routes"><strong>Need help from your provider?</strong>{% for channel in support_channels %}<a href="{{ channel.url }}" target="_blank" rel="noopener noreferrer">{{ channel.label }} ↗</a>{% endfor %}<small>Opens the provider’s website. This chat cannot transfer you.</small></aside>{% endif %}
+{% endblock %}

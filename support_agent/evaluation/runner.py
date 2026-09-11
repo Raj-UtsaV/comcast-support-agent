@@ -24,9 +24,6 @@ from support_agent.shared.schemas import JudgeScores, SupportRequest
 
 def evaluate(config, training_path, *, agent=None, judge=None, metrics_only=False):
     config = deepcopy(config)
-    if config["runtime"]["demo_mode"]:
-        raise ValueError("Synthetic demo mode cannot produce real evaluation results.")
-
     categories = approved_categories(config)
     initial_state = source_state(config)
     training_hash = file_hash(Path(training_path))

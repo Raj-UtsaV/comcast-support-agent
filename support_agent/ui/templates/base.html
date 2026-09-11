@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ config.company.display_name }} · Support</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script></head>
+<body><main><header><a class="brand" href="/">✦ {{ config.company.display_name }} · Help</a><span class="badge">AI support assistant</span></header>
+<p class="muted">Independent support demonstration · No account access</p>
+{% block content %}{% endblock %}<footer>Draft, review, then decide. This app cannot transfer you or make account changes.</footer></main></body></html>

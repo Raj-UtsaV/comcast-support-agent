@@ -20,7 +20,7 @@ resolved by the installer; this is not a complete dependency lockfile.
 | Sentence Transformers | Turn messages into embeddings: numerical representations used for similarity search. |
 | FAISS CPU | Search those vectors without requiring a GPU or database service. |
 | LiteLLM | Provide a common calling interface for supported LLM providers. The selected provider and model remain in configuration. |
-| Streamlit | Build the three-tab website. |
+| Flask | Serve the HTML/CSS customer chat and staff dashboard. |
 | pytest | Run tests using synthetic data and fake models, without paid API calls. |
 
 The data pipeline uses Python's built-in CSV and SQLite modules. SQLite is a
@@ -53,7 +53,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip check
 ```
 
-The CPU selection avoids downloading GPU runtime packages for this demo.
+The CPU selection avoids downloading GPU runtime packages for this application.
 Commands above use Linux/macOS executable paths; Windows environments use
 `.venv\Scripts\python.exe`. Only the local Linux installation is being checked
 during this implementation step.

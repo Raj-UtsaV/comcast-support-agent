@@ -81,37 +81,9 @@ safety:
 
 
 customer_support:
-  # General first-step guidance, separate from retrieved/model-generated replies.
-  # Sources: https://www.xfinity.com/support/articles/internet-connectivity-troubleshooting
-  # https://www.xfinity.com/support/articles/troubleshoot-tv-no-picture-black-blue-screen
-  troubleshooting:
-    - patterns: ['(?i)\b(internet|wi-?fi|router|modem|connection)\b']
-      reply: |-
-        Let's start with a couple of basic checks. Make sure your modem/router has power and its cables are securely connected. These checks may help us narrow down the issue.
-
-        Is the problem happening on every device or just one? What lights do you see on the modem/router?
-      followups:
-        - patterns: ['(?i)\b(all|every|both|multiple)\b']
-          reply: |-
-            Thanks — since more than one device is affected, let's focus on the connection they share. What lights are showing on the modem/router, and are they steady or blinking?
-        - patterns: ['(?i)\b(one|single|only my)\b']
-          reply: |-
-            Thanks — let's focus on that device first. Is it connected over Wi-Fi or with a cable, and does it show an error message?
-        - patterns: ['(?i)\b(blink\w*|flash\w*|steady|solid|lights?|red|green|white|orange)\b']
-          reply: |-
-            That helps. Light meanings depend on the model, so I don't want to guess. What is the model name printed on the router/modem? Please leave out its serial number and account details.
-    - patterns: ['(?i)\b(tv|television|channels?|hdmi)\b']
-      reply: |-
-        Let's check the basics first. Make sure the TV and TV box are powered on and the connecting cable is secure. If there is no picture, check that the TV input matches the port the box is connected to.
-
-        Are all channels affected, or just some? Do you see an error message?
-      followups:
-        - patterns: ['(?i)\b(all|every|both)\b']
-          reply: |-
-            Thanks — all channels are affected. Does the TV show its own menu when you use the remote, and what exact message appears when you return to the TV box input?
-        - patterns: ['(?i)\b(some|one|few|only)\b']
-          reply: |-
-            Thanks — only some channels are affected. Which channels are they, and what exact error message appears on one of them?
+  channels:
+    - label: Comcast contact options
+      url: https://www.xfinity.com/support/contact-us
 
 ui:
   # Written for the UI; these are not dataset records or evaluation examples.

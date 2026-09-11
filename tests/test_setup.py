@@ -51,8 +51,3 @@ def test_setup_missing_source_fails_before_model_loading(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "create_embedder", unexpected)
     with pytest.raises(FileNotFoundError, match="Source dataset missing"):
         setup.setup_pipeline(config)
-
-
-def test_setup_rejects_scripted_demo():
-    with pytest.raises(ConfigError, match="Demo mode"):
-        setup.setup_pipeline(load_config("configs/demo.yaml"))

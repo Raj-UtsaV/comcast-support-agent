@@ -1,18 +1,15 @@
-# app.py
+# Flask staff dashboard
 
-The website has Support Agent, Evaluation and Failure Analysis tabs. It reads
-company settings from YAML, accepts a message and optional typed history, then
-shows the category, draft, decision, reasons and historical evidence. It never
-sends messages or performs external account actions. The demo has a persistent
-synthetic-data banner.
+`app.py` exposes a WSGI application built by `support_agent/ui/web.py`.
+The dashboard accepts company selection, a message and optional JSON history,
+and renders the category, confidence, draft, decision, safety signals and evidence.
+Saved evaluation metrics and failure analysis appear below the reply workspace.
+Editing the message or history clears the displayed draft. Replies can be downloaded.
 
-`st.cache_resource` reuses the generator, encoder and index across interactions.
-The cache key includes configuration, source fingerprints and the current saved
-generation; cached retrieval also checks freshness around searches. See
-[Streamlit resource caching](https://docs.streamlit.io/develop/api-reference/caching-and-state/st.cache_resource).
-Restart after changing environment credentials. Requests/results live only in
-the browser session state unless you explicitly export evaluation artifacts.
-This is a local demonstration, not an authenticated production service.
+HTML templates live in `support_agent/ui/templates`; CSS and JavaScript live in
+`support_agent/ui/static`. User content is escaped by Jinja or rendered using
+JavaScript textContent. The runtime has a bounded process-local LRU cache keyed
+by configuration and index revision. Restart workers after changing credentials.
 
-The displayed result is associated with the submitted company, message and
-history. Editing those inputs hides the old answer until Analyse is run again.
+The customer app is a separate WSGI service (`customer_app:app`) and does not
+expose staff routes. See [deployment](deployment.md) for commands and configuration.

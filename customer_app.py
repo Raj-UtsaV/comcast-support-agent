@@ -1,7 +1,8 @@
-"""Customer chat entry point. Staff tools remain in app.py."""
+"""Customer chat: gunicorn customer_app:app."""
+import os
+from support_agent.ui.web import create_app
 
-from support_agent.ui.customer import main
+app = create_app()
 
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', '8000')))

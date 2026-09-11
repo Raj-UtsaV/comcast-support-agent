@@ -19,7 +19,6 @@ paths:
   model_cache: .cache/huggingface
 
 runtime:
-  demo_mode: false
   max_message_characters: 8000
   max_history_messages: 20
 

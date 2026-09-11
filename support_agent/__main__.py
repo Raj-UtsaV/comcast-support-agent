@@ -35,21 +35,17 @@ def main(argv=None):
                 result = setup_pipeline(config, rebuild=args.rebuild)
             elif args.command == "check":
                 checks = {}
-                if config["runtime"]["demo_mode"]:
-                    create_agent(config)
-                    checks["demo"] = "ready: explicitly synthetic"
-                else:
-                    for name, check in (
-                        ("categories", lambda: approved_categories(config)),
-                        ("generator", lambda: create_generator(config)),
-                        ("judge", lambda: create_generator(config, "judge")),
-                        ("saved_index", lambda: load_saved_index(config)),
-                    ):
-                        try:
-                            check()
-                            checks[name] = "ready"
-                        except (ValueError, OSError, RuntimeError) as error:
-                            checks[name] = str(error)
+                for name, check in (
+                    ("categories", lambda: approved_categories(config)),
+                    ("generator", lambda: create_generator(config)),
+                    ("judge", lambda: create_generator(config, "judge")),
+                    ("saved_index", lambda: load_saved_index(config)),
+                ):
+                    try:
+                        check()
+                        checks[name] = "ready"
+                    except (ValueError, OSError, RuntimeError) as error:
+                        checks[name] = str(error)
                 result = {"company_id": config["company"]["id"], "checks": checks}
             else:
                 if args.message is None and not args.stdin:

@@ -21,7 +21,7 @@ The real Twitter CSV has been downloaded; see [dataset.md](../dataset.md).
 The configuration loader, data-preparation and evidence-selection modules now
 exist, along with embeddings, search, saved-index loading and a command-line
 retrieval workflow. Classification, reply generation, verification, escalation,
-the Streamlit interface, baselines, evaluation and human-rating import are now
+the Flask interface, baselines, evaluation and human-rating import are now
 implemented. Real runs require human-approved categories, completed labels and
 model credentials. No real agent evaluation results are available.
 
@@ -42,8 +42,7 @@ modules can share it without loading models. It performs these steps:
 
 `api_key_env` stores the **name** of an environment variable, never the key
 itself. A real generator with missing settings or credentials must fail with a
-clear message. `demo_mode: false` means synthetic behavior is not selected
-implicitly. Tests will explicitly inject fake models.
+clear message. Tests will explicitly inject fake models.
 
 ## What each section controls
 
@@ -52,7 +51,7 @@ implicitly. Tests will explicitly inject fake models.
 | `config_version`, `random_seed` | Identify the configuration format and seed sampling for reproducibility. |
 | `company` | Require a company ID, display name and support instructions from the company YAML. |
 | `paths` | Define data, labels, artifact, model-cache and results locations relative to the project root. |
-| `runtime` | Bound customer-message size and conversation-history length; make demo mode explicit. |
+| `runtime` | Bound customer-message size and conversation-history length. |
 | `dataset` | Select an adapter, map source columns, select support authors and process CSV chunks. |
 | `splits` | Separate complete conversations chronologically and quarantine threads spanning time boundaries. |
 | `intent_discovery` | Export a seeded sample of training customer messages for human review. |
@@ -213,4 +212,4 @@ results.
 The remaining software was completed together as requested. Review the shared
 defaults alongside [agent.md](../agent/workflow.md), [safety.md](../agent/safety.md) and
 [evaluation.md](../evaluation/runner.md). Category approval and human labels remain
-explicit setup steps; the synthetic demo does not fill them automatically.
+explicit setup steps.

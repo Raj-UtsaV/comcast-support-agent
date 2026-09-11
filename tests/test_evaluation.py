@@ -6,7 +6,7 @@ import json
 import pytest
 from test_pipeline import setup_project
 
-from support_agent.agent.demo import DemoGenerator
+from fakes import FakeGenerator
 from support_agent.agent.workflow import SupportAgent
 from support_agent.data.annotations import (
     FIELDS,
@@ -30,7 +30,6 @@ def labelled(tmp_path):
         ],
         "keyword_rules": {"connection": ["(?i)cable"]},
     }
-    config["demo"] = {"confidence": 0.9}
     config["evaluation"]["golden_set"].update(min_size=1, max_size=5, target_size=2)
     records, _ = collect_evidence(config)
     evaluation = list(customer_messages(config, "evaluation").values())[:2]
@@ -69,7 +68,7 @@ def labelled(tmp_path):
                 explanations=dict.fromkeys(dimensions, "Synthetic test judgment"),
             )
 
-    agent = SupportAgent(config, DemoGenerator(config), Retriever())
+    agent = SupportAgent(config, FakeGenerator(config), Retriever())
     return config, training_path, agent, Judge()
 
 
@@ -123,12 +122,6 @@ def test_metrics_only_is_explicitly_incomplete(labelled):
     assert report["status"] == "metrics_only_incomplete"
     assert all(row["judge"] is None for row in rows)
 
-
-def test_demo_cannot_be_evaluated_as_real_data(labelled):
-    config, training, agent, judge = labelled
-    config["runtime"]["demo_mode"] = True
-    with pytest.raises(ValueError, match="Synthetic"):
-        evaluate(config, training, agent=agent, judge=judge)
 
 
 def test_review_export_is_blank_and_does_not_overwrite(labelled, tmp_path):

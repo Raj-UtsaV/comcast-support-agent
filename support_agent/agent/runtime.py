@@ -61,18 +61,6 @@ class SavedRetriever:
 
 
 def create_agent(config) -> SupportAgent:
-    if type(config["runtime"]["demo_mode"]) is not bool:
-        raise ConfigError("runtime.demo_mode must be a boolean.")
-
     approved_categories(config)
-
-    if config["runtime"]["demo_mode"]:
-        from support_agent.agent.demo import DemoGenerator, DemoRetriever
-
-        if "demo" not in config:
-            raise ConfigError("Explicit demo settings are required.")
-
-        return SupportAgent(config, DemoGenerator(config), DemoRetriever(config))
-
     generator = create_generator(config)
     return SupportAgent(config, generator, SavedRetriever(config))

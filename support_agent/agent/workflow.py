@@ -197,5 +197,4 @@ class SupportAgent:
             else "Configured checks passed; no account action was performed.",
             safety_flags=flags,
             reply_status=reply_status,
-            demo=config["runtime"]["demo_mode"],
         )

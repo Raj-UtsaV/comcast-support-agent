@@ -1,96 +1,70 @@
-"""Customer chat behavior without provider calls or customer data."""
-
+"""Flask customer conversation and input boundary checks."""
 from types import SimpleNamespace
-
-from streamlit.testing.v1 import AppTest
-
-from support_agent.shared.config import PROJECT_ROOT, load_config
+from support_agent.shared.config import load_config
 from support_agent.ui import customer
+from support_agent.ui.web import create_app
 
 
-def customer_app(monkeypatch):
-    config = load_config("configs/demo.yaml")
-    monkeypatch.setattr(customer, "load_config", lambda path: config)
-    customer.customer_runtime.clear()
-    return AppTest.from_file(str(PROJECT_ROOT / "customer_app.py"), default_timeout=20).run()
+def client():
+    return create_app(config_path="configs/comcast.yaml").test_client()
 
 
-def test_customer_chat_topics_followup_and_reset(monkeypatch):
-    app = customer_app(monkeypatch)
-    assert not app.exception
-    assert not app.sidebar.selectbox and not app.tabs
-    next(b for b in app.button if b.label == "Internet connection").click().run()
-    assert not app.exception
-    assert len(app.chat_message) == 2
-    assert "securely connected" in app.chat_message[1].text[0].value
-    app.chat_input[0].set_value("Please cancel my account.").run()
-    assert not app.exception
-    assert len(app.chat_message) == 4
-    assert "cannot transfer you" in app.chat_message[-1].text[0].value
-    next(b for b in app.button if b.label == "New conversation").click().run()
-    assert not app.chat_message
 
-
-def test_customer_setup_errors_never_expose_internal_details(monkeypatch):
-    app = customer_app(monkeypatch)
-
+def test_customer_errors_never_expose_internal_details(monkeypatch):
     def fail(*args):
-        raise RuntimeError("private-key local/path/provider-details")
-
-    monkeypatch.setattr(customer, "answer", fail)
-    app.chat_input[0].set_value("Can you help?").run()
-    assert not app.exception
-    reply = app.chat_message[-1].text[0].value
-    assert "try again" in reply
-    assert "private-key" not in reply and "provider-details" not in reply
+        raise RuntimeError('private-key local/path/provider-details')
+    monkeypatch.setattr(customer, 'answer', fail)
+    result = client().post('/api/chat', json={'message': 'Help'})
+    assert result.status_code == 503
+    assert 'try again' in result.json['error']
+    assert b'private-key' not in result.data
 
 
-def test_sequential_customer_messages_reach_backend_in_order(monkeypatch):
-    app = customer_app(monkeypatch)
+def test_history_order_reset_and_tampering(monkeypatch):
     seen = []
-
     def reply(config, messages, text):
-        seen.append(([dict(item) for item in messages], text))
-        return "Which devices are affected?" if not messages else "What lights do you see?"
-
-    monkeypatch.setattr(customer, "answer", reply)
-    app.chat_input[0].set_value("Internet is down").run()
-    app.chat_input[0].set_value("All devices").run()
-    app.chat_input[0].set_value("Blinking white").run()
-    assert not app.exception
+        seen.append(([dict(m) for m in messages], text))
+        return 'Next question'
+    monkeypatch.setattr(customer, 'answer', reply)
+    app = client()
+    token = None
+    for text in ['Internet is down', 'All devices', 'Blinking white']:
+        response = app.post('/api/chat', json={'message': text, 'conversation': token})
+        assert response.status_code == 200
+        token = response.json['conversation']
     assert [len(history) for history, _ in seen] == [0, 2, 4]
-    assert [item["text"] for item in seen[2][0]] == [
-        "Internet is down", "Which devices are affected?",
-        "All devices", "What lights do you see?",
-    ]
+    assert seen[2][0][2]['text'] == 'All devices'
+    assert app.post('/api/chat', json={'message': 'Help', 'conversation': token + 'x'}).status_code == 400
+    app.post('/api/chat', json={'message': 'New conversation'})
+    assert seen[-1][0] == []
 
 
-def test_customer_history_is_bounded_and_escalated_draft_is_not_shown(monkeypatch):
-    config = load_config("configs/demo.yaml")
-    config["runtime"]["max_history_messages"] = 2
-    captured = []
+def test_input_limits_and_static_assets():
+    app = client()
+    for value in ['', 123, 'x' * 100000]:
+        assert app.post('/api/chat', json={'message': value}).status_code == 400
+    assert app.post('/api/chat', json=[]).status_code == 400
+    assert app.get('/static/style.css').status_code == 200
+    assert app.get('/static/app.js').status_code == 200
+    assert app.get('/healthz').json == {'status': 'ok'}
+    assert app.post('/api/analyse', json={}).status_code == 404
 
-    def analyse(request):
-        captured.append(request)
-        return SimpleNamespace(
-            decision="escalate", reply_status="generated", draft_reply="Internal draft"
-        )
 
-    monkeypatch.setattr(
-        customer, "customer_runtime", lambda *args: SimpleNamespace(analyse=analyse)
-    )
-    messages = [
-        {"role": "customer", "text": "Old question"},
-        {"role": "agent", "text": "Old answer"},
-        {"role": "customer", "text": "Latest question"},
-        {"role": "agent", "text": "Latest answer"},
-        {"role": "agent", "text": "Temporary error", "context": False},
-    ]
-    reply = customer.answer(config, messages, "Help")
-    assert "Internal draft" not in reply
-    assert [item.text for item in captured[0].conversation_history] == [
-        "Latest question", "Latest answer"
-    ]
-    config["runtime"]["max_history_messages"] = 0
-    customer.answer(config, messages, "Help")
-    assert captured[-1].conversation_history == []
+
+def test_conversation_works_across_workers(monkeypatch):
+    monkeypatch.setenv('SECRET_KEY', 'test-shared-worker-key')
+    seen = []
+    def reply(config, messages, text):
+        seen.append(len(messages))
+        return 'A reply'
+    monkeypatch.setattr(customer, 'answer', reply)
+    first = client().post('/api/chat', json={'message': 'First'})
+    second = client().post('/api/chat', json={'message': 'Followup', 'conversation': first.json['conversation']})
+    assert second.status_code == 200 and seen == [0, 2]
+
+
+def test_customer_page_has_official_support_route():
+    page = create_app(config_path='configs/comcast.yaml').test_client().get('/')
+    assert page.status_code == 200
+    assert b'href="https://www.xfinity.com/support/contact-us"' in page.data
+    assert b'Enter to send' in page.data

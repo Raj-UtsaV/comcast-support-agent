@@ -41,7 +41,7 @@ The support account spelling was checked against the local dataset. The list
 allows a company to have several support accounts later, without adding
 company-specific conditions to Python.
 
-The company instructions are choices for this demonstration. They are not
+The company instructions are choices for this applicationnstration. They are not
 official Comcast policy. They ask for clear, evidence-based drafts and human
 review when account access or an action would be needed. Shared safety
 instructions from `base.yaml` must also be applied by the runtime.

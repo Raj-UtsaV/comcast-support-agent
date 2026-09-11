@@ -6,8 +6,12 @@ The package root contains the package marker, main entry point, and setup orches
 
 ```text
 comcast-support-agent/
-├── app.py
-├── customer_app.py
+├── app.py                      # Staff Flask entry point
+├── customer_app.py             # Customer Flask entry point
+├── Dockerfile
+├── Procfile
+├── requirements.txt
+├── README.md
 ├── configs/
 ├── data/                       # Dataset, processed records and review sheets
 ├── artifacts/                  # Saved company search indexes
@@ -42,7 +46,6 @@ comcast-support-agent/
 │   │   ├── safety.py
 │   │   ├── taxonomy.py
 │   │   ├── runtime.py
-│   │   └── demo.py
 │   ├── evaluation/
 │   │   ├── __main__.py
 │   │   ├── runner.py
@@ -51,11 +54,12 @@ comcast-support-agent/
 │   │   └── ratings.py
 │   └── ui/
 │       ├── customer.py
-│       ├── troubleshooting.py
+│       ├── conversation.py      # Live chat prompt and model verification
+│       ├── channels.py
 │       ├── dashboard.py
-│       └── style.py
-├── scripts/                    # Submission replay and packaging
-├── submission/                 # Review kit, rubric, status, and evidence
+│       ├── web.py
+│       ├── templates/          # base.html, customer.html, staff.html
+│       └── static/             # app.js, style.css
 ├── docs/                       # Mirrors the feature folders above
 └── tests/
 ```
@@ -72,8 +76,8 @@ load models, read datasets, or make API calls.
 `embeddings` converts text to vectors. `retrieval` owns search and persistence.
 `models` supplies the configurable LLM client. `agent` combines these components
 into the support workflow. `evaluation` compares the agent with baselines and
-imports human ratings. `ui` implements customer chat, basic guidance, staff
-styling, and evaluation views for `customer_app.py` and `app.py`.
+imports human ratings. `ui` implements model-led customer chat, Flask routes,
+HTML/CSS styling, and evaluation views for `customer_app.py` and `app.py`.
 
 The root `data/` directory stores files; `support_agent/data/` contains Python
 code that processes them. Raw data, YAML company settings and model caches stay

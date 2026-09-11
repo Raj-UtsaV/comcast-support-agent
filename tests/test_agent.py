@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from support_agent.agent.demo import DemoGenerator, DemoRetriever
+from fakes import FakeGenerator, FakeRetriever
 from support_agent.agent.runtime import create_agent
 from support_agent.agent.workflow import SupportAgent
 from support_agent.shared.config import ConfigError, load_config
@@ -19,8 +19,8 @@ from support_agent.shared.schemas import (
 
 @pytest.fixture
 def setup():
-    config = load_config("configs/demo.yaml")
-    return config, DemoGenerator(config), DemoRetriever(config)
+    config = load_config("configs/comcast.yaml")
+    return config, FakeGenerator(config), FakeRetriever(config)
 
 
 def request(config, text="My connection stopped working.", history=None):
@@ -31,10 +31,9 @@ def request(config, text="My connection stopped working.", history=None):
     )
 
 
-def test_explicit_demo_runs_complete_workflow(setup):
-    config, _, _ = setup
-    result = create_agent(config).analyse(request(config))
-    assert result.demo is True
+def test_complete_workflow(setup):
+    config, generator, retriever = setup
+    result = SupportAgent(config, generator, retriever).analyse(request(config))
     assert result.decision == "auto_handle" and result.reply_status == "generated"
     assert result.evidence_ids
 
@@ -206,7 +205,7 @@ def test_company_mismatch_and_invalid_history_are_rejected(setup):
         agent.analyse(request(config, history=history))
 
 
-def test_real_agent_does_not_invent_taxonomy_or_fall_back_to_demo():
+def test_agent_requires_approved_taxonomy():
     config = load_config("configs/comcast.yaml")
     config["intents"]["approved_taxonomy"] = []
     with pytest.raises(ConfigError, match="review|Review"):

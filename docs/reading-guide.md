@@ -9,7 +9,7 @@ when you want a deeper explanation of one module.
 
 ## 1. Understand the purpose
 
-Read [README.md](../README.md), then [report.md](../report.md).
+Read [README.md](../README.md).
 
 The README explains how to run the project. The report explains what good
 support means, what was deliberately left out, and what has actually been
@@ -17,7 +17,7 @@ measured. Keep these distinctions in mind:
 
 - Embeddings find related historical conversations; the LLM writes replies.
 - Historical replies are evidence, not proof of successful resolution.
-- Live model replies, scripted demo replies, and configured troubleshooting guides are different paths.
+- Live model replies use the configured generator and conversation history.
 - Tests and corpus counts do not substitute for human-labelled quality results.
 
 **Next:** find where those model and behavior choices are configured.
@@ -30,7 +30,6 @@ measured. Keep these distinctions in mind:
 | 2 | [configs/comcast.yaml](../configs/comcast.yaml) | Company instructions, categories, risk categories, customer guidance | Company overrides |
 | 3 | [.env.example](../.env.example) | Model/provider names and required credential variables | Your private `.env` supplies local values |
 | 4 | [shared/config.py](../support_agent/shared/config.py) | `load_config`, `_merge`, `_expand_environment` | Combines defaults, overrides, and environment into one validated dictionary |
-| 5 | [configs/demo.yaml](../configs/demo.yaml) | Explicit demo settings | Selects the scripted path without credentials |
 
 Follow `load_config()` from top to bottom. Existing process environment values
 win over `.env`, and paths become absolute relative to the project root. That is
@@ -111,7 +110,7 @@ data or indexes. See [rebuild.md](rebuild.md) for commands.
 ## 6. Follow one request through the backend
 
 Read [agent/runtime.py](../support_agent/agent/runtime.py) first. `create_agent()`
-selects demo or real components. `SavedRetriever` joins the saved index and query
+constructs the configured model and retriever. `SavedRetriever` joins the saved index and query
 encoder, checking freshness around searches.
 
 Then read [agent/workflow.py](../support_agent/agent/workflow.py), especially
@@ -122,7 +121,6 @@ Then read [agent/workflow.py](../support_agent/agent/workflow.py), especially
 | Validate categories | [agent/taxonomy.py](../support_agent/agent/taxonomy.py) | Approved IDs, descriptions, rule references |
 | Classify, draft, verify | [models/client.py](../support_agent/models/client.py) | Ordered chat history and structured tasks through LiteLLM; JSON validation |
 | Detect risks and decide | [agent/safety.py](../support_agent/agent/safety.py) | Pattern flags plus classification/retrieval findings |
-| Run explicit demo | [agent/demo.py](../support_agent/agent/demo.py) | Scripted generator and retriever |
 
 ```mermaid
 flowchart TD
@@ -149,15 +147,11 @@ Inspect both, plus the flags, when investigating escalation.
 
 Read [customer_app.py](../customer_app.py), then
 [ui/customer.py](../support_agent/ui/customer.py). The first is just an entry point.
-In the second, `main()` manages session history, input, rendering, and reset;
-`answer()` constructs a request and calls the backend.
+`ui/web.py` handles HTTP requests and signed conversation history.
+`ui/customer.py` caches the runtime; `ui/conversation.py` generates and verifies
+model-led replies. `ui/channels.py` supplies configured provider support links.
 
-Next read [ui/troubleshooting.py](../support_agent/ui/troubleshooting.py). It can
-select configured basic guidance and follow-up branches when an ordinary
-technical request gets a fallback/handoff. These finite guides are not model
-predictions and do not override account/security handling or failed attempts.
-
-Then read [app.py](../app.py), [ui/style.py](../support_agent/ui/style.py), and
+Then read [app.py](../app.py), [static/style.css](../support_agent/ui/static/style.css), and
 [ui/dashboard.py](../support_agent/ui/dashboard.py). These implement the staff
 workspace, its appearance, and saved evaluation views. Settings remain in YAML
 and `.env`; customer chat exposes no model configuration controls.
@@ -170,7 +164,7 @@ flowchart LR
     R --> W[agent/workflow.py]
     W --> U
     W --> S
-    U --> T[ui/troubleshooting.py: basic guidance]
+    U --> T[ui/conversation.py: model-led replies]
     S --> D[ui/dashboard.py: saved evaluation]
 ```
 
@@ -183,11 +177,9 @@ See [customer-app.md](customer-app.md) for ports and launch commands.
 | Order | Read | Connection |
 | --- | --- | --- |
 | 1 | [data/annotations.py](../support_agent/data/annotations.py) | Exports review sheets; validates human labels against source identities |
-| 2 | [SAMPLING_AND_LABELLING.md](../submission/SAMPLING_AND_LABELLING.md) | Sampling, human decisions, missing labels |
 | 3 | [evaluation/runner.py](../support_agent/evaluation/runner.py) | Runs agent and two baselines; saves exact predictions |
 | 4 | [evaluation/baselines.py](../support_agent/evaluation/baselines.py) | Majority/generic and keyword/TF-IDF comparisons |
 | 5 | [evaluation/metrics.py](../support_agent/evaluation/metrics.py) | Metrics and denominators |
-| 6 | [JUDGE_RUBRIC.md](../submission/JUDGE_RUBRIC.md) | Quality scores and independent human review |
 | 7 | [evaluation/ratings.py](../support_agent/evaluation/ratings.py) | Matches ratings to reply checksums; calculates agreement |
 
 ```mermaid
@@ -219,7 +211,7 @@ and real credentials. Then pair each component with its tests:
 | Decisions and conversation-aware retrieval | [test_agent.py](../tests/test_agent.py) |
 | Provider ordering and staff UI | [test_models_ui.py](../tests/test_models_ui.py) |
 | Customer follow-ups and reset | [test_customer_ui.py](../tests/test_customer_ui.py) |
-| Guidance branches | [test_troubleshooting.py](../tests/test_troubleshooting.py) |
+| Model-led chat | [test_conversation.py](../tests/test_conversation.py) |
 | Evaluation and human rating import | [test_evaluation.py](../tests/test_evaluation.py) |
 
 Run them without regenerating local test/bytecode caches:
@@ -228,19 +220,6 @@ Run them without regenerating local test/bytecode caches:
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider
 ```
 
-## 10. Finish with reproducibility and design decisions
-
-Read [submission/STATUS.md](../submission/STATUS.md), then
-[submission/README.md](../submission/README.md),
-[reproduce_submission.py](../scripts/reproduce_submission.py), and
-[package_submission.py](../scripts/package_submission.py).
-
-Replay verifies engineering counts, not human quality. Packaging includes a
-current prepared/index snapshot while excluding credentials and caches. A Git
-checkout excludes these generated artifacts via [.gitignore](../.gitignore),
-so replay needs the submission bundle or regenerated outputs. Finally, read
-[decision_log.md](../decision_log.md) for the design tradeoffs.
-
 ## Where to start when changing something
 
 | Change | Start here | Then inspect |
@@ -248,10 +227,10 @@ so replay needs the submission bundle or regenerated outputs. Finally, read
 | Model or credentials | `.env` / `.env.example` | `models/client.py`; restart both apps |
 | Categories or company instructions | `configs/comcast.yaml` | `agent/taxonomy.py`, `agent/workflow.py` |
 | Too much escalation | `agent/safety.py`, `configs/base.yaml` | Actual result flags in staff UI |
-| Lost follow-up context | `ui/customer.py` | `models/client.py`, `agent/workflow.py`, `ui/troubleshooting.py` |
+| Lost follow-up context | `ui/customer.py` | `models/client.py`, `agent/workflow.py`, `ui/conversation.py` |
 | Missing/stale vectors | `setup.py` | `retrieval/index_store.py`, `retrieval/index_state.py` |
 | Customer appearance | `ui/customer.py` | `customer_app.py` |
-| Staff appearance | `ui/style.py` | `app.py`, `ui/dashboard.py` |
+| Staff appearance | `ui/static/style.css` | `app.py`, `ui/dashboard.py` |
 | Metrics or judge agreement | `evaluation/metrics.py` | `evaluation/runner.py`, `evaluation/ratings.py` |
 
 For a short first pass, read these seven files in order:

@@ -10,9 +10,6 @@ from support_agent.shared.config import ConfigError
 
 
 def setup_pipeline(config, *, rebuild=False):
-    if config["runtime"]["demo_mode"]:
-        raise ConfigError("Demo mode uses scripted evidence and does not need setup.")
-
     processed = Path(config["paths"]["processed_dir"])
     prepared = not processed.exists()
     if prepared:

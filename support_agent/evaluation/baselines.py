@@ -81,5 +81,4 @@ class Baselines:
             "retrieved_examples": matches,
             "safety_flags": [],
             "reply_status": "baseline",
-            "demo": False,
         }

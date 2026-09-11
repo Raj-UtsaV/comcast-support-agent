@@ -17,7 +17,7 @@ loading the model. Invalid or stale indexes fail visibly; use `--rebuild` to
 generate a new index from the existing processed data. To reprocess changed raw
 data or preparation settings, choose a new `paths.processed_dir` first.
 
-Launch the website separately with `.venv/bin/streamlit run app.py`.
+Launch the website separately with `.venv/bin/python app.py`.
 
 ## Individual pipeline steps
 
@@ -25,7 +25,7 @@ The cleanup removed `data/processed/comcast/` and `artifacts/comcast/`.
 Source code, configurations, `.env`, the raw CSV, review templates, `.venv`,
 and downloaded embedding weights were preserved.
 
-Stop any running Streamlit process with Ctrl+C before rebuilding. Run these
+Stop any running Flask process with Ctrl+C before rebuilding. Run these
 commands in order; continue to the next step only when the previous one succeeds.
 
 ```bash
@@ -45,10 +45,10 @@ python -m support_agent.retrieval search --config configs/comcast.yaml \
 
 # 4. Check live-agent setup, then launch the website.
 python -m support_agent check --config configs/comcast.yaml
-streamlit run app.py --server.address 127.0.0.1
+.venv/bin/python app.py
 ```
 
-Open http://localhost:8501 and select **comcast**. Live replies require a Groq
+Open http://localhost:8001 and select **comcast**. Live replies require a Groq
 API key in `.env` and reviewed categories in `configs/comcast.yaml`. The judge
 key is needed only for evaluation. Preparation and index building run locally
 without an LLM API key. Building the index encodes the corpus and may take time.

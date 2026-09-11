@@ -1,9 +1,9 @@
-"""Explicitly scripted, synthetic demo clients; never a production fallback."""
+"""Test doubles for offline workflow regression tests; not application components."""
 
 from support_agent.shared.schemas import Classification, ReplyCheck, ReplyDraft
 
 
-class DemoGenerator:
+class FakeGenerator:
     def __init__(self, config):
         self.config = config
 
@@ -11,8 +11,8 @@ class DemoGenerator:
         if task == "classify":
             return Classification(
                 intent=self.config["intents"]["approved_taxonomy"][0]["id"],
-                confidence=self.config["demo"]["confidence"],
-                reason="Scripted demo category",
+                confidence=0.9,
+                reason="Scripted test category",
             )
 
         if task == "draft":
@@ -23,13 +23,13 @@ class DemoGenerator:
 
         if task == "verify":
             return ReplyCheck(
-                grounded=True, safe=True, reason="Scripted demo verification"
+                grounded=True, safe=True, reason="Scripted test verification"
             )
 
-        raise ValueError("Unsupported demo task")
+        raise ValueError("Unsupported test task")
 
 
-class DemoRetriever:
+class FakeRetriever:
     def __init__(self, config):
         self.config = config
 
@@ -37,14 +37,14 @@ class DemoRetriever:
         company = self.config["company"]["id"]
         return [
             {
-                "similarity": self.config["demo"]["similarity"],
+                "similarity": 0.9,
                 "evidence": {
                     "company_id": company,
                     "conversation_id": "synthetic_conversation",
                     "evidence_id": f"{company}:synthetic_reply",
-                    "split": "synthetic_demo",
-                    "customer_text": self.config["demo"]["customer_text"],
-                    "reply_text": self.config["demo"]["reply_text"],
+                    "split": "synthetic_test",
+                    "customer_text": "My connection stopped working.",
+                    "reply_text": "Please check that the cable is securely connected.",
                     "resolution_verified": False,
                 },
             }

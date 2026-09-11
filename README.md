@@ -12,7 +12,7 @@ previous one succeeds.
 
 ```text
 Clone → install libraries → download raw data → configure Groq
-      → prepare data + generate embeddings + build FAISS → verify → Streamlit
+      → prepare data + generate embeddings + build FAISS → verify → Flask
 ```
 
 ## 1. Clone the repository
@@ -138,36 +138,31 @@ Optionally test a real model request before opening the website:
   --message "My internet connection stopped working. What can I try?"
 ```
 
-## 7. Start the Streamlit apps
+## 7. Start the Flask apps
 
-**Terminal 1 — customer chat:**
-
-```bash
-.venv/bin/python -m streamlit run customer_app.py \
-  --server.address 127.0.0.1 --server.port 8501
-```
-
-Open **http://localhost:8501**. The customer app uses Comcast by default and
-supports follow-up messages in the same browser session.
-
-**Terminal 2 — staff dashboard:** open another terminal, enter the same project
-folder, and run:
+Customer chat:
 
 ```bash
-.venv/bin/python -m streamlit run app.py \
-  --server.address 127.0.0.1 --server.port 8502
+.venv/bin/python customer_app.py
 ```
 
-Open **http://localhost:8502** and select **comcast**. This view shows the draft,
-handling decision, evidence, and saved evaluation results. Run `app.py` through
-Streamlit, not `python app.py` or an IDE's ordinary Run Python button.
+Open **http://localhost:8000**. Follow-up messages remain in the current page;
+refreshing the page or choosing New conversation starts again.
 
-If Streamlit asks for an onboarding email, press Enter to skip it. Stop either
-app with Ctrl+C. Restart both apps after changing `.env` values.
+Staff dashboard, in a separate terminal:
+
+```bash
+.venv/bin/python app.py
+```
+
+Open **http://localhost:8001** and select **comcast** to inspect drafts, evidence,
+and evaluation results. Stop with Ctrl+C; restart after changing credentials.
+These commands use the development server. For hosting, use the production
+commands and container in [deployment instructions](docs/deployment.md).
 
 ## Subsequent runs, rebuilds, and common errors
 
-Normally, run only the Streamlit commands in step 7. Recreating vectors on every
+Normally, run only the Flask commands in step 7. Recreating vectors on every
 app startup is unnecessary.
 
 | Situation | Action |
@@ -176,8 +171,8 @@ app startup is unnecessary.
 | Index is stale or you want to regenerate vectors | Run the command below with `--rebuild` |
 | Raw data or preparation rules changed | Choose a new `paths.processed_dir` in company YAML, then run setup with `--rebuild` |
 | Existing index but model cache was deleted | Use the model-download snippet below; ordinary setup can reuse an index without loading its encoder |
-| `ModuleNotFoundError` | Repeat step 2 and launch with `.venv/bin/python -m streamlit` |
-| Port is already in use | Stop the old app or choose another `--server.port` |
+| `ModuleNotFoundError` | Repeat step 2 and launch with `.venv/bin/python customer_app.py` |
+| Port is already in use | Stop the old app or choose another `PORT` environment variable |
 | Groq request fails | Check the local key, provider availability, and rate limits; rebuilding vectors does not fix API errors |
 
 ```bash
@@ -196,25 +191,13 @@ PY
 
 For the individual preparation/build commands, see [the rebuild guide](docs/rebuild.md).
 
-## Try the UI without a dataset or API key
-
-After installing dependencies in step 2, run the explicit scripted demo:
-
-```bash
-.venv/bin/python -m streamlit run customer_app.py \
-  --server.address 127.0.0.1 --server.port 8501 -- --config configs/demo.yaml
-```
-
-Alternatively launch the staff dashboard and select **demo**. Demo classification,
-evidence, and replies are synthetic; they are not live model results.
-
 ## What results can be reproduced?
 
 The steps above reproduce data preparation, vector building, retrieval, and the
 apps. The original processing run selected **72,288 messages across 24,065
 conversations**, with **22,978 indexed pairs**. Quality metrics against human
 labels and judge–human agreement remain pending; the 200-example golden review
-sheet is not yet hand-labelled. See [report.md](report.md).
+sheet is not yet hand-labelled.
 
 Run the automated offline checks after dependency installation:
 
@@ -222,10 +205,7 @@ Run the automated offline checks after dependency installation:
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider
 ```
 
-The recorded suite passed 205 tests in about 13 seconds. This is engineering
-verification, not a customer-quality benchmark. The optional submission replay
-script needs the separately generated `submission/` snapshot and index artifacts;
-that snapshot is not part of this clean GitHub checkout.
+The offline tests verify engineering behavior, not customer-quality benchmarks.
 
 New to the codebase? Follow the [guided reading path](docs/reading-guide.md) for
 file order, workflow diagrams, and how the modules connect.
@@ -249,7 +229,7 @@ flowchart LR
 | `embeddings/` | Pretrained text encoder and its provider interface |
 | `retrieval/` | Search, saved indexes, fingerprints and retrieval commands |
 | `models/` | Configurable LLM client |
-| `agent/` | Support workflow, safety, categories, runtime and synthetic demo |
+| `agent/` | Support workflow, safety, categories, runtime |
 | `evaluation/` | Evaluation runner, baselines, metrics and human ratings |
 | `ui/` | Customer chat, troubleshooting guides, staff styling, and evaluation views |
 
@@ -318,7 +298,7 @@ reply and keyword classification/TF-IDF retrieval; both always escalate.
 
 ## Reproduction and extension
 
-The offline test suite, scripted demo, cached-index inspection/search and loading
+The offline test suite, cached-index inspection/search and loading
 saved evaluation reports form the fast reproduction path. These do not require
 re-encoding the corpus or rerunning paid judging. Full live evaluation of 200
 messages makes many provider calls and can exceed 15 minutes; its runtime and
@@ -336,9 +316,9 @@ ranked evidence, thresholds and conversation deduplication behind the search
 factory; adapt persistence as required by that backend. Never weaken company
 or golden-set exclusions for a provider change.
 
-## Limits and delivery status
+## Limitations
 
-The software and offline demo are implemented. Real category approval, human
+The software is implemented. Real category approval, human
 labels/ratings and configured live models are still required to claim measured
 agent quality. Historical replies may be wrong, outdated or unresolved; model
 verification and regex safety checks can miss errors. The UI has no production
@@ -346,6 +326,4 @@ authentication or account integrations. Exact in-memory search and repeated
 freshness hashes suit this dataset, not unlimited-scale serving. Model weights
 truncate long text according to their tokenizer limit.
 
-See [report.md](report.md), [decision_log.md](decision_log.md) and the per-file
-walkthroughs in `docs/`. The report explicitly separates observed pipeline counts
-from unrun quality measurements.
+See the per-file walkthroughs in `docs/`.

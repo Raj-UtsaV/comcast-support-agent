@@ -1,4 +1,4 @@
-"""Provider-boundary validation and Streamlit's explicit demo interface."""
+"""Provider-boundary validation and model interfaces."""
 
 import os
 import json
@@ -7,7 +7,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from support_agent.ui.web import create_app
 
 from support_agent.models.client import create_generator
 from support_agent.shared.config import PROJECT_ROOT, ConfigError, load_config
@@ -39,7 +39,7 @@ def test_package_commands_work_from_another_directory(module, command, tmp_path)
 
 
 def configured(monkeypatch):
-    config = load_config("configs/demo.yaml")
+    config = load_config("configs/comcast.yaml")
     config["models"]["generator"].update(provider="example", name="example/model")
     monkeypatch.setenv("LLM_API_KEY", "synthetic-secret")
     return config
@@ -76,7 +76,7 @@ def test_provider_schema_and_secret_redaction(monkeypatch):
 
 
 def test_missing_credentials_fail_before_provider_import():
-    config = load_config("configs/demo.yaml")
+    config = load_config("configs/comcast.yaml")
     config["models"]["generator"].update(provider="example", name="example/model")
     with pytest.raises(ConfigError, match="API-key"):
         create_generator(config)
@@ -104,16 +104,3 @@ def test_provider_receives_ordered_conversation_turns(monkeypatch):
             {"role": "agent", "text": "One device or all devices?"},
         ],
     }, Classification, "Classify the ongoing issue")
-
-
-def test_streamlit_demo_can_analyse_without_network_or_credentials():
-    app = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=20).run()
-    assert not app.exception
-    app.sidebar.selectbox[0].select(PROJECT_ROOT / "configs/demo.yaml").run()
-    app.text_area[0].set_value("My connection stopped working.")
-    next(button for button in app.button if button.label == "Analyse").click().run()
-    assert not app.exception
-    assert any("SYNTHETIC DEMO" in warning.value for warning in app.warning)
-    assert any("Auto-handle candidate" in success.value for success in app.success)
-    app.text_area[0].set_value("A different customer question.").run()
-    assert not app.success

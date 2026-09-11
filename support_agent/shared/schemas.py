@@ -49,7 +49,6 @@ class SupportResult(StrictModel):
     decision_reason: str
     safety_flags: list[str]
     reply_status: Literal["generated", "safe_fallback"]
-    demo: bool = False
 
 
 class JudgeScores(StrictModel):
