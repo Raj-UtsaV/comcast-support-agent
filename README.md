@@ -1,69 +1,234 @@
 # Configurable Customer Support AI Agent
 
-New to the codebase? Follow the [guided reading path](docs/reading-guide.md) for
-the recommended file order, workflow diagrams, and how the modules connect.
+A customer-support assistant using **Groq GPT-OSS 120B**, pretrained sentence
+embeddings, and a local **FAISS vector index**. It provides a customer chat and
+an independent staff dashboard for inspecting replies, evidence, and evaluation.
+It does not access accounts, create tickets, or transfer customers to a human.
 
-## Submission and reproducible evidence
+**Start here:** follow steps 1–7 below to go from a fresh GitHub clone to the
+running apps. Commands use a Linux Bash terminal. Python 3.12 and `uv` are used
+for installation; Git and `curl` are also required. Run each step only after the
+previous one succeeds.
 
-Start with [the submission guide](submission/README.md) and
-[requirement status](submission/STATUS.md). From the provided source bundle,
-`python3 scripts/reproduce_submission.py` verifies the engineering headline
-offline using only Python's standard library: **72,288 processed messages,
-24,065 conversations, and 22,978 indexed pairs**. See the recorded runtime in
-`submission/evidence/reproduction.json`. These are data counts, not model-quality
-scores. The 200-example review set is real but still unlabelled; human annotation,
-baseline quality results and judge–human agreement remain explicitly pending.
+```text
+Clone → install libraries → download raw data → configure Groq
+      → prepare data + generate embeddings + build FAISS → verify → Streamlit
+```
 
-A configurable Python support assistant that classifies a customer request,
-retrieves historical evidence, drafts a reply and recommends auto-handling or
-human escalation. No reply is sent and no account action is performed.
+## 1. Clone the repository
 
-The first real dataset uses `comcastcares` conversations. Company identifiers,
-categories, model choices, rules and thresholds live in YAML. No custom intent
-model is trained: the agreed approach uses an existing LLM plus pretrained
-embeddings. `company` consistently names the business being supported.
+```bash
+git clone https://github.com/Raj-UtsaV/comcast-support-agent.git
+cd comcast-support-agent
+```
 
-## What works now
+The repository is private, so your GitHub account needs access. The clone contains
+source, configuration templates, tests, and documentation. It does **not** contain
+`.env`, installed libraries, the raw dataset, model weights, or generated vectors.
 
-- Chunked dataset preparation with company/conversation/time separation.
-- Cached local embeddings and a saved index containing 22,978 historical pairs.
-- Retrieval CLI; structured classification/drafting/verification; safety rules.
-- Explicit offline synthetic demo and a three-tab Streamlit app.
-- Two baselines, evaluation metrics, LLM judging and exact-reply human ratings.
-- Blank real-data review sheets and offline tests. No headline quality scores
-  have been fabricated; real evaluation awaits human labels and model credentials.
+## 2. Install Python and project libraries
 
-## Customer chat and staff workspace
-
-For the new customer chat, run `.venv/bin/streamlit run customer_app.py`.
-The existing `app.py` remains the staff workspace. See
-[customer and staff startup instructions](docs/customer-app.md) to run both
-interfaces, or to try the customer chat in explicit demo mode.
-
-## Quick start: no keys or dataset required
-
-Use Python 3.12. The current workspace already has a populated `.venv`.
-For a fresh checkout with `uv` installed:
+With `uv` installed, run:
 
 ```bash
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python --torch-backend cpu -r requirements.txt
+uv pip check --python .venv/bin/python
 ```
 
-From this project directory:
+The CPU option installs compatible CPU builds of PyTorch and torchvision.
+All following commands explicitly use `.venv`, so activating it is optional.
+
+## 3. Download the source dataset
+
+Use the complete **Customer Support on Twitter** CSV, version 10, from
+[Thought Vector on Kaggle](https://www.kaggle.com/datasets/thoughtvector/customer-support-on-twitter).
+Place it at **`data/raw/twcs.csv`**. Do not substitute Kaggle's small `sample.csv`.
+See [dataset provenance and terms](docs/dataset.md).
+
+For a fresh clone, this downloads the pinned source ZIP and extracts the CSV:
 
 ```bash
-.venv/bin/python -m pytest -q
-.venv/bin/python -m support_agent check --config configs/demo.yaml
-.venv/bin/python -m support_agent analyse --config configs/demo.yaml \
-  --message "My connection stopped working."
-.venv/bin/streamlit run app.py --server.address 127.0.0.1
+mkdir -p data/raw .cache/dataset
+curl --location --fail --show-error --retry 3 \
+  --output .cache/dataset/twcs.zip \
+  'https://www.kaggle.com/api/v1/datasets/download/thoughtvector/customer-support-on-twitter/twcs%2Ftwcs.csv?datasetVersionNumber=10'
+.venv/bin/python -m zipfile -t .cache/dataset/twcs.zip
+.venv/bin/python -m zipfile -e .cache/dataset/twcs.zip data/raw
+sha256sum data/raw/twcs.csv
 ```
 
-Select **demo** in the website sidebar. It is visibly synthetic: classification,
-evidence and verification are scripted and never stand in for model results.
-An account-cancellation example demonstrates escalation. Demo mode cannot run
-real-data evaluation.
+The expected CSV checksum is:
+
+```text
+cd297fcfa1bf6f99938be242e8e578980bc6d1b96adc8691abec9a39175b03c0
+```
+
+The CSV is approximately 493 MiB. If the download requires authentication or
+returns an error, download version 10 through Kaggle and put the complete CSV at
+the same path. Skip this step if you already have the verified file.
+
+## 4. Configure Groq
+
+Create your local settings file without overwriting an existing one:
+
+```bash
+test -f .env || cp .env.example .env
+```
+
+Open `.env` in your editor and fill in your Groq API key:
+
+```dotenv
+LLM_PROVIDER=groq
+LLM_MODEL=groq/openai/gpt-oss-120b
+LLM_API_KEY=YOUR_GROQ_API_KEY
+```
+
+The model/provider values are already in the template. `JUDGE_API_KEY` is needed
+only for judged evaluation, not customer chat or vector building. Never commit
+`.env`. Review company categories and rules in `configs/comcast.yaml`; the file
+already contains starter internet, TV, billing, appointment, and account categories.
+Human approval and training-reviewed keyword rules are needed before evaluation.
+
+## 5. Generate processed data and the vector database — one command
+
+```bash
+.venv/bin/python -m support_agent setup --config configs/comcast.yaml
+```
+
+This command performs the pipeline in order:
+
+1. Reads `data/raw/twcs.csv`, reconstructs company conversations, and writes
+   chronological train/validation/evaluation splits under `data/processed/comcast/`.
+2. Loads the pinned embedding model, downloading missing weights into
+   `.cache/huggingface/` on first use.
+3. Selects eligible training question–reply pairs and generates their vectors.
+4. Saves and validates the FAISS index files under `artifacts/comcast/search/`.
+
+The saved files include `vectors.npy`, `evidence.jsonl`, a generation manifest,
+and `current.json`. **No separate vector database server is required.**
+The recorded build contains **22,978 historical pairs with 384-dimensional
+vectors**. These are pipeline counts, not answer-quality scores.
+
+Preparation and embedding run locally and do not require Groq credentials.
+The first run can take time depending on downloads and CPU speed; a cold setup
+is not guaranteed to finish within 15 minutes. Later runs reuse existing
+processed data and a valid index. The command finishes with JSON containing
+`"status": "ready"` and `"indexed_pairs"`.
+
+## 6. Verify retrieval and live-agent setup
+
+```bash
+.venv/bin/python -m support_agent.retrieval inspect --config configs/comcast.yaml
+.venv/bin/python -m support_agent.retrieval search --config configs/comcast.yaml \
+  --message "My internet connection stopped working."
+.venv/bin/python -m support_agent check --config configs/comcast.yaml
+```
+
+`inspect` validates the saved index. `search` tests local embedding/retrieval
+without calling Groq; an empty match list is possible at the configured threshold.
+For customer chat, `check` should show `categories`, `generator`, and `saved_index`
+as `ready`. A missing judge key affects evaluation only. `check` validates local
+configuration; it does not prove that Groq is reachable or that a key is accepted.
+
+Optionally test a real model request before opening the website:
+
+```bash
+.venv/bin/python -m support_agent analyse --config configs/comcast.yaml \
+  --message "My internet connection stopped working. What can I try?"
+```
+
+## 7. Start the Streamlit apps
+
+**Terminal 1 — customer chat:**
+
+```bash
+.venv/bin/python -m streamlit run customer_app.py \
+  --server.address 127.0.0.1 --server.port 8501
+```
+
+Open **http://localhost:8501**. The customer app uses Comcast by default and
+supports follow-up messages in the same browser session.
+
+**Terminal 2 — staff dashboard:** open another terminal, enter the same project
+folder, and run:
+
+```bash
+.venv/bin/python -m streamlit run app.py \
+  --server.address 127.0.0.1 --server.port 8502
+```
+
+Open **http://localhost:8502** and select **comcast**. This view shows the draft,
+handling decision, evidence, and saved evaluation results. Run `app.py` through
+Streamlit, not `python app.py` or an IDE's ordinary Run Python button.
+
+If Streamlit asks for an onboarding email, press Enter to skip it. Stop either
+app with Ctrl+C. Restart both apps after changing `.env` values.
+
+## Subsequent runs, rebuilds, and common errors
+
+Normally, run only the Streamlit commands in step 7. Recreating vectors on every
+app startup is unnecessary.
+
+| Situation | Action |
+| --- | --- |
+| Processed data and/or index were deleted | Run the setup command in step 5 |
+| Index is stale or you want to regenerate vectors | Run the command below with `--rebuild` |
+| Raw data or preparation rules changed | Choose a new `paths.processed_dir` in company YAML, then run setup with `--rebuild` |
+| Existing index but model cache was deleted | Use the model-download snippet below; ordinary setup can reuse an index without loading its encoder |
+| `ModuleNotFoundError` | Repeat step 2 and launch with `.venv/bin/python -m streamlit` |
+| Port is already in use | Stop the old app or choose another `--server.port` |
+| Groq request fails | Check the local key, provider availability, and rate limits; rebuilding vectors does not fix API errors |
+
+```bash
+.venv/bin/python -m support_agent setup --config configs/comcast.yaml --rebuild
+```
+
+Download missing model weights separately when reusing a saved index:
+
+```bash
+.venv/bin/python - <<'PY'
+from support_agent.shared.config import load_config
+from support_agent.embeddings.encoder import create_embedder
+create_embedder(load_config("configs/comcast.yaml"), local_files_only=False)
+PY
+```
+
+For the individual preparation/build commands, see [the rebuild guide](docs/rebuild.md).
+
+## Try the UI without a dataset or API key
+
+After installing dependencies in step 2, run the explicit scripted demo:
+
+```bash
+.venv/bin/python -m streamlit run customer_app.py \
+  --server.address 127.0.0.1 --server.port 8501 -- --config configs/demo.yaml
+```
+
+Alternatively launch the staff dashboard and select **demo**. Demo classification,
+evidence, and replies are synthetic; they are not live model results.
+
+## What results can be reproduced?
+
+The steps above reproduce data preparation, vector building, retrieval, and the
+apps. The original processing run selected **72,288 messages across 24,065
+conversations**, with **22,978 indexed pairs**. Quality metrics against human
+labels and judge–human agreement remain pending; the 200-example golden review
+sheet is not yet hand-labelled. See [report.md](report.md).
+
+Run the automated offline checks after dependency installation:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider
+```
+
+The recorded suite passed 205 tests in about 13 seconds. This is engineering
+verification, not a customer-quality benchmark. The optional submission replay
+script needs the separately generated `submission/` snapshot and index artifacts;
+that snapshot is not part of this clean GitHub checkout.
+
+New to the codebase? Follow the [guided reading path](docs/reading-guide.md) for
+file order, workflow diagrams, and how the modules connect.
 
 ## Architecture
 
@@ -86,87 +251,12 @@ flowchart LR
 | `models/` | Configurable LLM client |
 | `agent/` | Support workflow, safety, categories, runtime and synthetic demo |
 | `evaluation/` | Evaluation runner, baselines, metrics and human ratings |
-| `ui/` | Evaluation and failure-analysis views used by root `app.py` |
+| `ui/` | Customer chat, troubleshooting guides, staff styling, and evaluation views |
 
-The package root contains only `__init__.py` and the main CLI `__main__.py`.
+The package root contains `__init__.py`, the main CLI `__main__.py`, and `setup.py`.
 Walkthroughs mirror these folders under `docs/`; test explanations live in
 `docs/tests/`. See the [complete folder structure](docs/structure.md), including
 module locations and command entry points.
-
-## Real dataset and index
-
-Obtain the Kaggle **Customer Support on Twitter** dataset and place its complete
-CSV at `data/raw/twcs.csv`. See [download/provenance instructions](docs/dataset.md)
-and the dataset's CC BY-NC-SA license terms. The current workspace already has
-the downloaded CSV, prepared company data, model cache and saved index.
-
-On a fresh data setup:
-
-```bash
-.venv/bin/python -m support_agent setup --config configs/comcast.yaml
-```
-
-This single command prepares missing data, downloads missing embedding weights,
-builds the vector index, and verifies it. Later runs reuse existing data and a
-valid index. Add `--rebuild` to regenerate the index from existing processed data.
-See [the rebuild pipeline](docs/rebuild.md) for individual steps and prerequisites.
-
-Preparation refuses to overwrite processed output. Choose a new
-`paths.processed_dir` when preparing a changed version. Training means the
-historical-development split, not training model weights. Validation is for
-development/tuning; the held-out evaluation and golden sets stay separate.
-
-For the first embedding-model download, run the snippet in
-[embeddings.md](docs/embeddings/encoder.md). Then:
-
-```bash
-.venv/bin/python -m support_agent.retrieval build --config configs/comcast.yaml
-.venv/bin/python -m support_agent.retrieval inspect --config configs/comcast.yaml
-.venv/bin/python -m support_agent.retrieval search --config configs/comcast.yaml \
-  --message "My internet keeps disconnecting."
-```
-
-Skip `build` when the saved index already exists. Use `build --rebuild` to
-publish a new generation after input changes. Hash checks detect stale data,
-golden annotations, embedding settings and relevant implementation changes.
-Old generations remain available. Search never retrieves another company's
-records and returns at most one reply per conversation.
-
-## Activate the real support agent
-
-1. Review `data/processed/comcast/intent_review.csv`. The
-   [category-review guide](docs/category_review.md) lists provisional patterns
-   found in that training sample; none is automatically approved.
-2. Fill `intents.approved_taxonomy`, `intents.keyword_rules` and
-   `safety.risky_intents` in `configs/comcast.yaml` after review.
-3. For a fresh setup, copy `.env.example` to `.env`. The template selects
-   Groq-hosted GPT-OSS 120B: `LLM_PROVIDER=groq` and
-   `LLM_MODEL=groq/openai/gpt-oss-120b`. Add your Groq API key as `LLM_API_KEY`
-   in `.env`. The judge selects the same model; fill `JUDGE_API_KEY` (which may
-   use the same key) only when running evaluation. The `groq/` prefix is
-   [LiteLLM's provider routing](https://docs.litellm.ai/docs/providers/groq);
-   Groq receives model ID `openai/gpt-oss-120b`, which supports the client's
-   [JSON-object output](https://console.groq.com/docs/model/openai/gpt-oss-120b).
-   Restart Streamlit after environment changes and select **comcast** in the
-   sidebar to use the live model. **demo** continues to use scripted responses.
-   Never commit keys.
-4. Check readiness and analyse a message:
-
-```bash
-.venv/bin/python -m support_agent check --config configs/comcast.yaml
-.venv/bin/python -m support_agent analyse --config configs/comcast.yaml \
-  --message "My internet keeps disconnecting."
-```
-
-Both analysis and retrieval accept `--stdin` instead of `--message`, allowing
-`--stdin < message.txt`. Input is bounded by YAML settings. Python callers may
-construct `SupportRequest` with typed customer/agent history. No system-role
-history is accepted. Real model calls send masked task text to your provider;
-regex masking is not a guarantee of complete sensitive-data removal.
-
-Missing setup is an error, never an implicit demo. Invalid or unsafe model
-output produces a labelled safe fallback and escalation. Confidence and cosine
-similarity are not calibrated probabilities of answer correctness.
 
 ## Human labels and evaluation
 
