@@ -1,0 +1,23 @@
+# Python 3.12. Direct dependencies are pinned; see docs/requirements.md.
+# For a CPU installation: uv pip install --torch-backend cpu -r requirements.txt
+
+# Configuration and structured inputs/outputs.
+PyYAML==6.0.3
+python-dotenv==1.2.3
+pydantic==2.13.5
+
+# Pretrained embeddings, search and evaluation (no custom model training).
+numpy==2.5.3
+scipy==1.18.1
+scikit-learn==1.9.0
+torch==2.14.0
+torchvision==0.29.0
+sentence-transformers==6.0.1
+faiss-cpu==1.15.0
+
+# Configurable LLM access and the website.
+litellm==1.100.1
+streamlit==1.63.0
+
+# Offline pipeline tests.
+pytest==9.1.1

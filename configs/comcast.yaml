@@ -1,0 +1,124 @@
+# Company-specific overrides for configs/base.yaml.
+# Values identify this dataset and demo; they are not verified company policy.
+config_version: 1
+
+company:
+  id: comcast
+  display_name: Comcast
+  instructions: >-
+    Draft replies for a Comcast customer-support demonstration. Use clear,
+    concise and respectful language. Acknowledge the customer's issue without
+    assuming its cause. Suggest troubleshooting only when the supplied
+    evidence supports it. If account access or an action is required, explain
+    that a human support representative must review the request. Do not claim
+    to represent an official live support channel or to have performed any
+    action. Do not invent contact details, links, prices, policies, service
+    status or promises about resolution times.
+    For routine internet or television issues, offer a small number of relevant,
+    evidence-supported troubleshooting steps before suggesting human help.
+    Ask one useful diagnostic question. Do not repeat steps the customer has
+    already tried. If historical replies only ask for a direct message, ask
+    about the symptoms instead of copying that handoff instruction.
+
+paths:
+  raw_csv: data/raw/twcs.csv
+  processed_dir: data/processed/comcast
+  results_dir: results/comcast
+
+dataset:
+  adapter: twitter_csv
+  channel: twitter
+  company_author_ids: [comcastcares]
+  # Download provenance; preparation reads paths.raw_csv, not a remote URL.
+  source:
+    provider: kaggle
+    reference: thoughtvector/customer-support-on-twitter
+    version: 10
+    file: twcs/twcs.csv
+  # Left: fields the adapter understands. Right: actual CSV headers.
+  columns:
+    message_id: tweet_id
+    author_id: author_id
+    role: inbound
+    timestamp: created_at
+    text: text
+    reply_message_ids: response_tweet_id
+    parent_message_id: in_response_to_tweet_id
+  # Quoted strings match csv.DictReader output, not YAML booleans.
+  role_values:
+    customer: 'True'
+    agent: 'False'
+  timestamp_format: '%a %b %d %H:%M:%S %z %Y'
+  reply_id_separator: ','
+
+# Fill these only after reviewing the company's training customer messages.
+intents:
+  approved_taxonomy:
+    - id: internet_connection
+      description: Internet outages, slow speeds, or intermittent connectivity.
+
+    - id: billing_payment
+      description: Bills, unexpected charges, payments, or refund requests.
+
+    - id: television_service
+      description: Missing channels, television signal, or cable TV problems.
+
+    - id: technician_appointment
+      description: Scheduling, changing, or checking a technician appointment.
+
+    - id: account_access
+      description: Login, password, account security, or cancellation requests.
+
+  # Optional: used by the keyword evaluation baseline.
+  keyword_rules: {}
+
+safety:
+  # These categories always require human support.
+  risky_intents:
+    - billing_payment
+    - technician_appointment
+    - account_access
+
+
+customer_support:
+  # General first-step guidance, separate from retrieved/model-generated replies.
+  # Sources: https://www.xfinity.com/support/articles/internet-connectivity-troubleshooting
+  # https://www.xfinity.com/support/articles/troubleshoot-tv-no-picture-black-blue-screen
+  troubleshooting:
+    - patterns: ['(?i)\b(internet|wi-?fi|router|modem|connection)\b']
+      reply: |-
+        Let's start with a couple of basic checks. Make sure your modem/router has power and its cables are securely connected. These checks may help us narrow down the issue.
+
+        Is the problem happening on every device or just one? What lights do you see on the modem/router?
+      followups:
+        - patterns: ['(?i)\b(all|every|both|multiple)\b']
+          reply: |-
+            Thanks — since more than one device is affected, let's focus on the connection they share. What lights are showing on the modem/router, and are they steady or blinking?
+        - patterns: ['(?i)\b(one|single|only my)\b']
+          reply: |-
+            Thanks — let's focus on that device first. Is it connected over Wi-Fi or with a cable, and does it show an error message?
+        - patterns: ['(?i)\b(blink\w*|flash\w*|steady|solid|lights?|red|green|white|orange)\b']
+          reply: |-
+            That helps. Light meanings depend on the model, so I don't want to guess. What is the model name printed on the router/modem? Please leave out its serial number and account details.
+    - patterns: ['(?i)\b(tv|television|channels?|hdmi)\b']
+      reply: |-
+        Let's check the basics first. Make sure the TV and TV box are powered on and the connecting cable is secure. If there is no picture, check that the TV input matches the port the box is connected to.
+
+        Are all channels affected, or just some? Do you see an error message?
+      followups:
+        - patterns: ['(?i)\b(all|every|both)\b']
+          reply: |-
+            Thanks — all channels are affected. Does the TV show its own menu when you use the remote, and what exact message appears when you return to the TV box input?
+        - patterns: ['(?i)\b(some|one|few|only)\b']
+          reply: |-
+            Thanks — only some channels are affected. Which channels are they, and what exact error message appears on one of them?
+
+ui:
+  # Written for the UI; these are not dataset records or evaluation examples.
+  example_messages:
+    - label: 'Illustrative: connection issue'
+      message: My internet connection stopped working.
+    - label: 'Illustrative: unexpected charge'
+      message: I have an unexpected charge on my bill.
+    - label: 'Illustrative: repeated problem'
+      message: I have already tried the suggested steps, but the problem is still happening.

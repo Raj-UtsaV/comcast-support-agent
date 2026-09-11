@@ -1,0 +1,30 @@
+# Explicitly synthetic demonstration; never use for real evaluation.
+config_version: 1
+company:
+  id: demo_company
+  display_name: Synthetic Support Demo
+  instructions: Demonstrate a fictional support workflow; no real company or account actions.
+paths:
+  raw_csv: data/raw/demo_not_a_real_dataset.csv
+dataset:
+  channel: web
+  company_author_ids: [demo_support]
+runtime:
+  demo_mode: true
+intents:
+  approved_taxonomy:
+    - id: demo_connection
+      description: Synthetic connection issue used only to demonstrate the workflow.
+  keyword_rules:
+    demo_connection: ['(?i)connection|internet|cable']
+demo:
+  confidence: 0.9
+  similarity: 0.9
+  customer_text: My connection stopped working.
+  reply_text: Please check that the cable is securely connected.
+ui:
+  example_messages:
+    - label: Synthetic connection example
+      message: My connection stopped working.
+    - label: Synthetic account-action example
+      message: Please cancel my account.

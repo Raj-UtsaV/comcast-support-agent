@@ -1,0 +1,46 @@
+# Local API credentials; keep the placeholder template available to commit.
+.env
+.env.*
+!.env.example
+/.streamlit/secrets.toml
+.kaggle/
+kaggle.json
+
+# Downloaded source data, generated conversations and company search indexes.
+/data/raw/
+/data/processed/
+/artifacts/
+
+# Locally packaged submission downloads; regenerate with scripts/package_submission.py.
+/comcast-support-agent-submission.zip
+/comcast-support-agent-submission.zip.sha256
+
+# Local Python environments, compiled files and tool caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python build outputs.
+/build/
+/dist/
+*.egg-info/
+
+# Local editor settings and temporary files.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.part
+
+# Keep configs, docs, tests, golden annotations and evaluation results trackable.
+# Avoid broad rules such as *.csv or *.json: those can be submission evidence.
