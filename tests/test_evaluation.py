@@ -17,6 +17,7 @@ from support_agent.data.annotations import (
 from support_agent.data.evidence import collect_evidence
 from support_agent.data.preparation import prepare_data
 from support_agent.evaluation.runner import evaluate, import_ratings, save_run
+from support_agent.evaluation.offline import offline_report
 from support_agent.shared.schemas import JudgeScores
 
 
@@ -121,6 +122,44 @@ def test_metrics_only_is_explicitly_incomplete(labelled):
     report, rows = evaluate(config, training, agent=agent, metrics_only=True)
     assert report["status"] == "metrics_only_incomplete"
     assert all(row["judge"] is None for row in rows)
+
+
+def test_offline_report_replays_frozen_predictions(labelled, tmp_path):
+    config, training, agent, judge = labelled
+    _, rows = evaluate(config, training, agent=agent, judge=judge)
+    predictions = tmp_path / "predictions.jsonl"
+    predictions.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+    human_scores = tmp_path / "human.csv"
+    with human_scores.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=[
+                "company_id",
+                "method",
+                "message_id",
+                "reply_sha256",
+                "dimension",
+                "score",
+            ],
+        )
+        writer.writeheader()
+        for row in rows:
+            for dimension, score in row["judge"]["scores"].items():
+                writer.writerow(
+                    {
+                        "company_id": row["company_id"],
+                        "method": row["method"],
+                        "message_id": row["message_id"],
+                        "reply_sha256": row["reply_sha256"],
+                        "dimension": dimension,
+                        "score": score,
+                    }
+                )
+
+    report = offline_report(config, predictions, human_scores)
+    assert report["status"] == "complete"
+    assert report["methods"]["agent"]["intent_accuracy"] == 1
+    assert report["human_agreement"]["safety"]["exact_agreement"] == 1
 
 
 

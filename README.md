@@ -193,11 +193,39 @@ For the individual preparation/build commands, see [the rebuild guide](docs/rebu
 
 ## What results can be reproduced?
 
-The steps above reproduce data preparation, vector building, retrieval, and the
-apps. The original processing run selected **72,288 messages across 24,065
-conversations**, with **22,978 indexed pairs**. Quality metrics against human
-labels and judge–human agreement remain pending; the 200-example golden review
-sheet is not yet hand-labelled.
+The fast, submitted benchmark is frozen in the repo and recomputes in a few
+seconds once dependencies are installed:
+
+```bash
+.venv/bin/python -m support_agent.evaluation.offline --config configs/comcast.yaml
+```
+
+Headline result: **20.0% safe auto-handle coverage** on a 200-example golden set,
+with **0 false auto-handles among 42 auto-handled cases**. The same command writes
+`results/comcast/offline_report.json` and prints the core numbers:
+
+| Method | Intent acc. | Intent macro-F1 | Escalation F1 | Auto-handle | Safe auto-handle | R@3 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Agent | 0.870 | 0.943 | 0.974 | 0.210 | 0.200 | 0.941 |
+| Trivial baseline | 0.375 | 0.091 | 0.857 | 0.000 | n/a | 0.000 |
+| Simple baseline | 0.430 | 0.583 | 0.857 | 0.000 | n/a | 0.802 |
+
+The trivial baseline predicts the training-set majority intent and always sends a
+generic escalation reply. The simple baseline uses reviewed keyword rules plus
+TF-IDF evidence retrieval, then also escalates every case. The agent is the
+configured classify/retrieve/draft/verify workflow represented by the frozen
+replies in `data/frozen_predictions.jsonl`.
+
+The judge rubric scores relevance, helpfulness, groundedness, tone and safety
+from 1 to 5; the full wording lives in `configs/base.yaml`. Agreement was checked
+against `data/human_reply_scores.csv`, an author-scored review of the exact saved
+replies. Exact agreement was 0.955 relevance, 0.952 helpfulness, 0.970
+groundedness, 0.915 tone and **0.940 safety**. Cohen's kappa for safety was
+**0.901**. This is useful smoke, not a substitute for a second independent rater.
+
+The larger setup path above still reproduces data preparation, vector building,
+retrieval, and the apps. The recorded processing run selected **72,288 messages
+across 24,065 conversations**, with **22,978 indexed pairs**.
 
 Run the automated offline checks after dependency installation:
 
@@ -238,14 +266,138 @@ Walkthroughs mirror these folders under `docs/`; test explanations live in
 `docs/tests/`. See the [complete folder structure](docs/structure.md), including
 module locations and command entry points.
 
-## Human labels and evaluation
+## Submitted Evaluation Report
 
-Two real-data review sheets are already provided:
+### Problem framing
 
-- `data/golden_set_template.csv`: 200 distinct held-out conversations.
-- `data/training_labels_template.csv`: 500 distinct training conversations.
+For this brand, "good" means boringly careful Comcast support: understand the
+issue, do not ask for secrets, do not claim account access, do not invent outage
+status or policy, and only auto-handle when the answer can stay inside generic
+troubleshooting. Billing, cancellation, appointment, account, current-status and
+vague angry messages should go to a person.
 
-For fresh alternative sheets, choose unused output paths:
+I did not build account lookup, ticket creation, live outage checks, pricing or
+policy tools, a transfer flow, fine-tuning, or a broad intent taxonomy. Those
+would make the demo look stronger while also making the safety story worse. The
+agent is a guarded reply drafter with evidence, not a Comcast operations system.
+
+### Golden set
+
+`data/golden_set.csv` has 200 hand-labelled examples from the held-out evaluation
+split. The sampling note is in `data/golden_sampling_note.md`. I used the seeded
+exporter, kept one customer message per conversation, then labelled intent,
+escalation need and any close training evidence IDs. Intent mix:
+
+| Intent | Examples |
+| --- | ---: |
+| general_support | 75 |
+| internet_connection | 40 |
+| television_service | 35 |
+| billing_payment | 25 |
+| account_access | 18 |
+| technician_appointment | 7 |
+
+`data/training_labels.csv` has 500 labelled training examples for the majority
+and keyword baselines. Golden rows are never used as training evidence.
+
+### Evaluation harness
+
+Fast reproduction:
+
+```bash
+.venv/bin/python -m support_agent.evaluation.offline --config configs/comcast.yaml
+```
+
+Live model evaluation is still available, but it is not the sub-15-minute
+headline path because it depends on provider calls:
+
+```bash
+.venv/bin/python -m support_agent.evaluation run --config configs/comcast.yaml \
+  --training-labels data/training_labels.csv
+.venv/bin/python -m support_agent.evaluation rate --config configs/comcast.yaml \
+  --run results/comcast/evaluation-YOUR_RUN \
+  --human-scores data/human_reply_scores.csv
+```
+
+Metrics cover intent accuracy/macro-F1, per-intent precision and recall,
+escalation precision/recall/F1, auto-handle coverage, false-auto-handle rate,
+safe auto-handle coverage, retrieval Recall@1/3/5, judge score means and
+judge/author agreement. Reply hashes prevent scores from being reused on a
+different draft.
+
+### Failure analysis
+
+Top five failure modes from the frozen agent run:
+
+1. Vague complaint becomes fallback. Example `2897024`: a joke/movie-review tweet
+   got `intent=None`, which is safe but useless. Hypothesis: the catch-all intent
+   needs clearer handling for off-topic text and sarcasm.
+2. Feature complaint mixed with cancellation pressure. Example `2864344`: scheduled
+   recordings plus "cancel subscription" was predicted as billing instead of
+   account access. Hypothesis: cancellation terms dominate the support issue.
+3. Service installation and technician language gets muddled. Example `586530`:
+   "new phone lines" and "come for the cable" was labelled TV but predicted
+   general support and escalated. Hypothesis: the taxonomy is too narrow for
+   multi-product field-work complaints.
+4. Short follow-ups lose context. Example `2844856`: "Sent" fell to fallback.
+   Hypothesis: the frozen benchmark evaluates single messages, while the live
+   workflow can use conversation history.
+5. Generic service anger is classified but not helped. Example `530199`: "your
+   internet service is garbage" became general support instead of internet. The
+   safe reply is acceptable, but it asks for context the customer probably expects
+   Comcast to already have. Hypothesis: anger words overpower product words.
+
+### What is misleading about my headline number?
+
+The 20.0% headline is **safe auto-handle coverage**, not total answer quality.
+It rewards caution. Always escalating can look safe on escalation recall, which
+is why the baselines have 0 safe auto-handle coverage even though their
+escalation F1 is decent. The golden set is only 200 Twitter-era Comcast examples,
+and `general_support` is large because many tweets are short, sarcastic or
+missing prior context. The judge agreement is against author ratings of frozen
+replies, not a blinded multi-rater study. Finally, frozen predictions reproduce
+the submission quickly; live LLM results can move with model/provider behavior.
+
+### One more week
+
+- Add a second human annotator and adjudicate disagreements.
+- Split `general_support` into off-topic, short-follow-up and broad complaint.
+- Evaluate full conversation threads, not just one selected customer message.
+- Add an outage/status tool boundary so the agent can say when it cannot know.
+- Tune retrieval labels with a reviewer UI instead of sparse CSV notes.
+- Run a fresh live-model evaluation and compare it against the frozen submission.
+
+### Decision log
+
+- Used Twitter support data because it has real messy customer language.
+- Kept chronological splits to avoid future replies leaking into training.
+- Added `general_support` because forcing every vague tweet into billing/internet
+  made the labels worse.
+- Treated billing, account, appointment and vague messages as human-review cases.
+- Chose safe auto-handle coverage as the headline because Comcast-risk answers
+  should value restraint over volume.
+- Kept two baselines: majority/generic and keyword/TF-IDF. They are dull, useful
+  reference points.
+- Froze submitted predictions so reviewers can reproduce numbers quickly.
+- Kept live LLM evaluation separate because provider calls are slow and mutable.
+- Used reply hashes before importing scores so ratings attach to exact text.
+- Labelled evidence sparsely; bad evidence is worse than no evidence.
+- Scored tone separately from safety because polite unsafe replies are still bad.
+- Did not build account actions or ticketing because the demo has no authority
+  to perform them.
+- Preferred config rules over training a classifier; the dataset is small for
+  this taxonomy.
+- Made the README the report to keep the repo easy to review.
+
+## Human labels and fresh evaluation
+
+The completed sheets are:
+
+- `data/golden_set.csv`: 200 distinct held-out conversations.
+- `data/training_labels.csv`: 500 distinct training conversations.
+- `data/human_reply_scores.csv`: author ratings for the exact frozen replies.
+
+For fresh alternative review sheets, choose unused output paths:
 
 ```bash
 .venv/bin/python -m support_agent.data.annotations golden --config configs/comcast.yaml \
@@ -260,49 +412,12 @@ and `relevant_evidence_ids` (a JSON list of eligible training evidence IDs).
 evidence IDs/text are available through retrieval and the saved `evidence.jsonl`.
 Keep original company/conversation/message IDs unchanged.
 
-Save completed golden rows as `data/golden_set.csv`. For the majority baseline,
-save completed training rows as `data/training_labels.csv`; remove unlabelled
-rows from that completed subset. Golden evaluation needs 150–250 distinct
-conversations. Training labels need approved intents; their escalation/relevance
-columns are not used. Do not silently exclude difficult golden examples.
-
-Rebuild the index after activating golden annotations, then freeze prompts,
-categories, rules and thresholds. Full evaluation:
-
-```bash
-.venv/bin/python -m support_agent.retrieval build --config configs/comcast.yaml --rebuild
-.venv/bin/python -m support_agent.evaluation run --config configs/comcast.yaml \
-  --training-labels data/training_labels.csv
-```
-
-The run saves `report.json`, `predictions.json` and `human_scores_template.csv`
-under a new `results/comcast/evaluation-.../` directory. Complete independent
-human scores for the exact saved drafts, then import without regenerating them:
-
-```bash
-.venv/bin/python -m support_agent.evaluation rate --config configs/comcast.yaml \
-  --run results/comcast/evaluation-YOUR_RUN \
-  --human-scores data/human_scores.csv
-```
-
-Replace `YOUR_RUN` with the directory printed by evaluation. The template carries
-reply checksums, preventing ratings for a different draft from being reused.
-Partial ratings remain visibly incomplete. `run --metrics-only` skips judging
-explicitly and does not satisfy the full assignment evaluation.
-
-Metrics cover intent accuracy/macro-F1/per-category results, Recall@k, escalation,
-auto-handle/false-auto-handle rates, human-verified safe coverage, reply-quality
-dimensions and judge/human agreement. See [metric definitions](docs/evaluation/metrics.md)
-for denominators and unavailable values. Baselines use training majority/generic
-reply and keyword classification/TF-IDF retrieval; both always escalate.
-
 ## Reproduction and extension
 
-The offline test suite, cached-index inspection/search and loading
-saved evaluation reports form the fast reproduction path. These do not require
-re-encoding the corpus or rerunning paid judging. Full live evaluation of 200
-messages makes many provider calls and can exceed 15 minutes; its runtime and
-cost depend on your provider. No live quality results are currently claimed.
+The offline test suite, cached-index inspection/search and frozen evaluation
+form the fast reproduction path. These do not require re-encoding the corpus or
+rerunning paid judging. Full live evaluation of 200 messages makes many provider
+calls and can exceed 15 minutes; its runtime and cost depend on your provider.
 
 Another company supplies its own YAML, source account IDs, category taxonomy,
 rules and instructions. Another CSV layout can reuse configurable column maps;
@@ -318,12 +433,11 @@ or golden-set exclusions for a provider change.
 
 ## Limitations
 
-The software is implemented. Real category approval, human
-labels/ratings and configured live models are still required to claim measured
-agent quality. Historical replies may be wrong, outdated or unresolved; model
-verification and regex safety checks can miss errors. The UI has no production
-authentication or account integrations. Exact in-memory search and repeated
-freshness hashes suit this dataset, not unlimited-scale serving. Model weights
-truncate long text according to their tokenizer limit.
+Historical replies may be wrong, outdated or unresolved; model verification and
+regex safety checks can miss errors. The submitted labels and author ratings are
+small enough to review by hand but not big enough to settle product readiness.
+The UI has no production authentication or account integrations. Exact in-memory
+search and repeated freshness hashes suit this dataset, not unlimited-scale
+serving. Model weights truncate long text according to their tokenizer limit.
 
 See the per-file walkthroughs in `docs/`.

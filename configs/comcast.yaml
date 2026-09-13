@@ -69,8 +69,25 @@ intents:
     - id: account_access
       description: Login, password, account security, or cancellation requests.
 
+    - id: general_support
+      description: Vague complaints, short follow-ups, praise, or unclear support requests.
+
   # Optional: used by the keyword evaluation baseline.
-  keyword_rules: {}
+  keyword_rules:
+    internet_connection:
+      - '(?i)\b(internet|wifi|wi-fi|modem|router|connection|outage|offline|online|latency|speed|isp|gigabit|docsis|server stability)\b'
+      - '(?i)\b(service|network)\b.{0,40}\b(down|restored|working|unusable|spotty)\b'
+    billing_payment:
+      - '(?i)\b(bill|billing|charged?|charges|payment|refund|credit|restitution|price|rate|fee|money|\$)\b'
+      - '(?i)\b(pay|paying|paid|owed?|costs?)\b'
+    television_service:
+      - '(?i)\b(tv|television|cable|channel|channels|dvr|recording|recordings|x1|xfinity stream|stream app|live tv|on demand|signal|espn|pac12|guide|remote|box)\b'
+    technician_appointment:
+      - '(?i)\b(appointment|tech|technician|installer|installation|install|service call|truck|visit|line repair|new lines)\b'
+    account_access:
+      - '(?i)\b(account|acct|login|password|sign in|signin|cancel|cancellation|switching service|fraud|scam|unauthori[sz]ed|address|dm sent|info requested)\b'
+    general_support:
+      - '(?i)\b(help|support|customer service|thanks|thank you|mobile_care|mobile care|disappointed|annoying|sucks?|fix this)\b'
 
 safety:
   # These categories always require human support.
@@ -78,6 +95,7 @@ safety:
     - billing_payment
     - technician_appointment
     - account_access
+    - general_support
 
 
 customer_support:
